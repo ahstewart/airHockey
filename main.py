@@ -140,7 +140,7 @@ class Puck:
                 return 0
         # once it's over the median, move puck at defined rate until it hits the other end or bounces back
         puck_y_prev = puck_y
-        print("passed median")
+        #print("passed median")
         start_time = time.time()
         while not (((puck_y >= (self.table_y-float(self.puck_diameter/2))) and
                ((self.goal_x_1+float(self.puck_diameter/2)) < puck_x < (self.goal_x_2-float(self.puck_diameter/2))))
@@ -157,13 +157,36 @@ class Puck:
                 norm_y = 0
                 ref_x, ref_y = calc_reflect((v_x, v_y), (norm_x, norm_y))
                 shot_angle = calc_angle((ref_x, ref_y))
-                print(f"hit left wall\nv={v_x, v_y}, ref={ref_x, ref_y}, angle={shot_angle}")
+                temp_v_x = math.cos(math.radians(shot_angle))
+                temp_v_y = math.sin(math.radians(shot_angle))
+                while puck_x <= (float(self.puck_diameter / 2)):
+                    #print("getting puck back inside")
+                    puck_x += self.rate * temp_v_x
+                    puck_y += self.rate * temp_v_y
+                    #print(temp_v_x, temp_v_y)
+                    #print(puck_x, puck_y)
+                    if run_time > self.timeout:
+                        print("Shot failed: Timeout exceeded. Passed median.")
+                        return 0
+                #print(f"hit left wall\nv={v_x, v_y}, ref={ref_x, ref_y}, angle={shot_angle},pos={puck_x, puck_y}")
             elif puck_x >= (self.table_x - float(self.puck_diameter/2)):
                 norm_x = -1
                 norm_y = 0
                 ref_x, ref_y = calc_reflect((v_x, v_y), (norm_x, norm_y))
                 shot_angle = calc_angle((ref_x, ref_y))
-                print(f"hit right wall\nv={v_x, v_y}, ref={ref_x, ref_y}, angle={shot_angle}")
+                temp_v_x = math.cos(math.radians(shot_angle))
+                temp_v_y = math.sin(math.radians(shot_angle))
+                while puck_x >= (self.table_x - float(self.puck_diameter/2)):
+                    #print("getting puck back inside")
+                    puck_x += self.rate * temp_v_x
+                    puck_y += self.rate * temp_v_y
+                    #print(temp_v_x, temp_v_y)
+                    #print(puck_x, puck_y)
+                    run_time = time.time() - start_time
+                    if run_time > self.timeout:
+                        print("Shot failed: Timeout exceeded. Passed median.")
+                        return 0
+                #print(f"hit right wall\nv={v_x, v_y}, ref={ref_x, ref_y}, angle={shot_angle}, pos={puck_x, puck_y}")
             # check if puck hits pusher
             elif (float(self.puck_diameter/2)-float(self.pusher_diameter/2))**2 <= ((puck_x - pusher_x)**2 + (puck_y - pusher_y)**2) <= ((float(self.puck_diameter/2))+float(self.pusher_diameter/2))**2:
                 d = math.hypot((puck_x-pusher_x), (puck_y-pusher_y))
@@ -191,14 +214,18 @@ class Puck:
                         norm_y *= -1
                 ref_x, ref_y = calc_reflect((v_x, v_y), (norm_x, norm_y))
                 shot_angle = calc_angle((ref_x, ref_y))
-                print("hit pusher")
+                #print("hit pusher")
             # check if puck hits back wall
             elif puck_y >= (self.table_y - float(self.puck_diameter / 2)):
                 norm_x = 0
                 norm_y = -1
                 ref_x, ref_y = calc_reflect((v_x, v_y), (norm_x, norm_y))
                 shot_angle = calc_angle((ref_x, ref_y))
-                print(f"hit back wall\npos={puck_x, puck_y}, ref={ref_x, ref_y}, angle={shot_angle}")
+                temp_v_x = math.cos(math.radians(shot_angle))
+                temp_v_y = math.sin(math.radians(shot_angle))
+                #puck_x += self.rate * temp_v_x
+                #puck_y += self.rate * temp_v_y
+                #print(f"hit back wall\npos={puck_x, puck_y}, ref={ref_x, ref_y}, angle={shot_angle}")
             self.puck_pos.append((puck_x, puck_y))
             run_time = time.time() - start_time
             if run_time > self.timeout:
@@ -236,7 +263,7 @@ class Puck:
             array_table_length += 1
         table = np.zeros((array_table_width, array_table_length))
         for i in tqdm(range(array_table_length-1)):
-            for j in range(array_table_width-1):
+            for j in (range(array_table_width-1)):
                 results = []
                 for s in range(shots):
                     #signal.alarm(self.timeout)
@@ -250,7 +277,7 @@ class Puck:
                         print(exc)
                 goals = np.sum(results)
                 rate = float(goals/len(results))
-                print(rate)
+                #print(rate)
                 table[i, j] = rate
                 pusher_x += step
                 #signal.alarm(0)
