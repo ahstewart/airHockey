@@ -29,19 +29,8 @@ def check_quadrant(coords):
 
 def calc_angle(vector):
     # calculates an angle given a vector starting at the origin
-    if vector[1] == 0:
-        angle = 90
-    else:
-        angle = math.degrees(math.atan(abs(float(vector[1]/vector[0]))))
-    quad = check_quadrant(vector)
-    # print(f"angle = {angle}, quadrant = {quad}")
-    if quad == 2:
-        angle = 180 - angle
-    elif quad == 3:
-        angle += 180
-    elif quad == 4:
-        angle = 360 - angle
-    return angle
+    # math.atan2 natively handles all quadrants and x=0 edge cases
+    return math.degrees(math.atan2(vector[1], vector[0])) % 360
 
 
 def norm_vector(vec):
@@ -115,6 +104,8 @@ class Puck:
             puck_y += self.rate * v_y
             # check if puck hits wall - if it does, mirror the shot angle
             if puck_x <= (float(self.puck_diameter/2)):
+                # 1. Snap the puck to the wall to prevent clipping
+                puck_x = float(self.puck_diameter/2)
                 norm_x = 1
                 norm_y = 0
                 #print(f"v = {v_x, v_y}")
@@ -123,6 +114,8 @@ class Puck:
                 #print("hit left wall")
                 #print(f"x = {puck_x}, ref_vec = {ref_x, ref_y}")
             elif puck_x >= (self.table_x - float(self.puck_diameter/2)):
+                # 1. Snap the puck to the wall to prevent clipping
+                puck_x = (self.table_x - float(self.puck_diameter/2))
                 norm_x = -1
                 norm_y = 0
                 #print(f"v = {v_x,v_y}")
@@ -153,70 +146,47 @@ class Puck:
             puck_y += self.rate * math.sin(math.radians(shot_angle))
             # check if puck hits left or right wall - if it does, mirror the shot angle
             if puck_x <= (float(self.puck_diameter/2)):
+                # Snap the puck to the wall to prevent clipping
+                puck_x = float(self.puck_diameter/2)
                 norm_x = 1
                 norm_y = 0
                 ref_x, ref_y = calc_reflect((v_x, v_y), (norm_x, norm_y))
                 shot_angle = calc_angle((ref_x, ref_y))
                 temp_v_x = math.cos(math.radians(shot_angle))
                 temp_v_y = math.sin(math.radians(shot_angle))
-                while puck_x <= (float(self.puck_diameter / 2)):
-                    #print("getting puck back inside")
-                    puck_x += self.rate * temp_v_x
-                    puck_y += self.rate * temp_v_y
-                    #print(temp_v_x, temp_v_y)
-                    #print(puck_x, puck_y)
-                    if run_time > self.timeout:
-                        print("Shot failed: Timeout exceeded. Passed median.")
-                        return 0
                 #print(f"hit left wall\nv={v_x, v_y}, ref={ref_x, ref_y}, angle={shot_angle},pos={puck_x, puck_y}")
             elif puck_x >= (self.table_x - float(self.puck_diameter/2)):
+                # Snap the puck to the wall to prevent clipping
+                puck_x = (self.table_x - float(self.puck_diameter/2))
                 norm_x = -1
                 norm_y = 0
                 ref_x, ref_y = calc_reflect((v_x, v_y), (norm_x, norm_y))
                 shot_angle = calc_angle((ref_x, ref_y))
                 temp_v_x = math.cos(math.radians(shot_angle))
                 temp_v_y = math.sin(math.radians(shot_angle))
-                while puck_x >= (self.table_x - float(self.puck_diameter/2)):
-                    #print("getting puck back inside")
-                    puck_x += self.rate * temp_v_x
-                    puck_y += self.rate * temp_v_y
-                    #print(temp_v_x, temp_v_y)
-                    #print(puck_x, puck_y)
-                    run_time = time.time() - start_time
-                    if run_time > self.timeout:
-                        print("Shot failed: Timeout exceeded. Passed median.")
-                        return 0
                 #print(f"hit right wall\nv={v_x, v_y}, ref={ref_x, ref_y}, angle={shot_angle}, pos={puck_x, puck_y}")
             # check if puck hits pusher
-            elif (float(self.puck_diameter/2)-float(self.pusher_diameter/2))**2 <= ((puck_x - pusher_x)**2 + (puck_y - pusher_y)**2) <= ((float(self.puck_diameter/2))+float(self.pusher_diameter/2))**2:
-                d = math.hypot((puck_x-pusher_x), (puck_y-pusher_y))
-                l = (float(self.puck_diameter/2)**2 - float(self.pusher_diameter/2)**2 + d**2) / (2*d)
-                h = np.sqrt(float(self.puck_diameter/2)**2 - l**2)
-                x_intersect_1 = (l / d) * (pusher_x-puck_x) + (h / d) * (pusher_y-puck_y) + puck_x
-                x_intersect_2 = (l / d) * (pusher_x-puck_x) - (h / d) * (pusher_y-puck_y) + puck_x
-                y_intersect_1 = (l / d) * (pusher_y-puck_y) - (h / d) * (pusher_x-puck_x) + puck_y
-                y_intersect_2 = (l / d) * (pusher_y-puck_y) + (h / d) * (pusher_x-puck_x) + puck_y
-                y_intersect_diff = y_intersect_2 - y_intersect_1
-                x_intersect_diff = x_intersect_2 - x_intersect_1
-                # detect whether puck is above pusher or below
-                position = ((x_intersect_2 - x_intersect_2) * (puck_y - y_intersect_1) - (y_intersect_2 - y_intersect_1) * (puck_x - x_intersect_1))
-                # if it does hit, reflect shot angle off of pusher
-                norm_x = 1
-                norm_y = float(-1 * x_intersect_diff / y_intersect_diff)
-                norm_x, norm_y = norm_vector([norm_x, norm_y])
-                if position > 0:
-                    if norm_y < 0:
-                        norm_x *= -1
-                        norm_y *= -1
-                else:
-                    if norm_y > 0:
-                        norm_x *= -1
-                        norm_y *= -1
+            elif ((puck_x - pusher_x)**2 + (puck_y - pusher_y)**2) <= ((self.puck_diameter + self.pusher_diameter) / 2)**2:
+                dist = math.hypot((puck_x - pusher_x), (puck_y - pusher_y))
+                min_dist = (self.puck_diameter + self.pusher_diameter) / 2
+                
+                # 1. Snap puck OUT of the pusher to prevent infinite clipping loops
+                # We add a tiny 0.01 epsilon to ensure it completely clears the boundary
+                overlap = min_dist - dist
+                puck_x += ((puck_x - pusher_x) / dist) * (overlap + 0.01)
+                puck_y += ((puck_y - pusher_y) / dist) * (overlap + 0.01)
+
+                # 2. The normal vector is simply the line connecting the two centers
+                norm_x, norm_y = norm_vector([puck_x - pusher_x, puck_y - pusher_y])
+
+                # 3. Reflect the velocity
                 ref_x, ref_y = calc_reflect((v_x, v_y), (norm_x, norm_y))
                 shot_angle = calc_angle((ref_x, ref_y))
                 #print("hit pusher")
             # check if puck hits back wall
             elif puck_y >= (self.table_y - float(self.puck_diameter / 2)):
+                # Snap the puck to the wall to prevent clipping
+                puck_y = (self.table_y - float(self.puck_diameter / 2))
                 norm_x = 0
                 norm_y = -1
                 ref_x, ref_y = calc_reflect((v_x, v_y), (norm_x, norm_y))
@@ -239,6 +209,96 @@ class Puck:
         elif (float(self.table_y/2) - (1.5*self.puck_diameter)) < puck_y < (float(self.table_y/2) + (1.5*self.puck_diameter)):
             #print("Miss!")
             return 1
+        
+    def shoot_vectorized(self, pusher_x, pusher_y, shots):
+        # Initialize arrays for all pucks simultaneously
+        puck_x = np.random.uniform(0, self.table_x, shots)
+        puck_y = np.random.uniform(0, self.table_y / 2, shots)
+        shot_angle = np.random.uniform(0.01, 180, shots)
+        
+        # Calculate initial velocities
+        v_x = np.cos(np.radians(shot_angle))
+        v_y = np.sin(np.radians(shot_angle))
+        
+        # State tracking arrays
+        active = np.ones(shots, dtype=bool)       # True if puck is still in play
+        results = np.zeros(shots, dtype=int)      # 0: timeout, 1: miss, 2: goal
+        passed_median = np.zeros(shots, dtype=bool) 
+        
+        r_puck = float(self.puck_diameter / 2)
+        r_pusher = float(self.pusher_diameter / 2)
+        min_dist_sq = (r_puck + r_pusher) ** 2
+        
+        # Use a max loop count instead of time.time() to define a timeout limit.
+        # ~5000 loops is roughly equivalent to a few seconds of simulated movement.
+        max_loops = 5000 
+        loops = 0
+        
+        while np.any(active) and loops < max_loops:
+            loops += 1
+            
+            # 1. Update positions for ALL active pucks at once
+            puck_x[active] += self.rate * v_x[active]
+            puck_y[active] += self.rate * v_y[active]
+            
+            # 2. Check Left Wall
+            hit_left = active & (puck_x <= r_puck)
+            puck_x[hit_left] = r_puck
+            v_x[hit_left] *= -1
+            
+            # 3. Check Right Wall
+            hit_right = active & (puck_x >= self.table_x - r_puck)
+            puck_x[hit_right] = self.table_x - r_puck
+            v_x[hit_right] *= -1
+            
+            # 4. Update Median Status
+            just_passed = active & ~passed_median & (puck_y >= self.table_y / 2)
+            passed_median[just_passed] = True
+            
+            # 5. Check Pusher Collisions (Only for pucks past median)
+            dist_sq = (puck_x - pusher_x)**2 + (puck_y - pusher_y)**2
+            hit_pusher = active & passed_median & (dist_sq <= min_dist_sq)
+            
+            if np.any(hit_pusher):
+                # Snap pucks out of the pusher
+                dist = np.sqrt(dist_sq[hit_pusher])
+                overlap = (r_puck + r_pusher) - dist + 0.01
+                
+                # Calculate normal vectors
+                nx = (puck_x[hit_pusher] - pusher_x) / dist
+                ny = (puck_y[hit_pusher] - pusher_y) / dist
+                
+                puck_x[hit_pusher] += nx * overlap
+                puck_y[hit_pusher] += ny * overlap
+                
+                # Reflect velocities using vector dot product: v_new = v - 2(v.n)n
+                dot = v_x[hit_pusher] * nx + v_y[hit_pusher] * ny
+                v_x[hit_pusher] = v_x[hit_pusher] - 2 * dot * nx
+                v_y[hit_pusher] = v_y[hit_pusher] - 2 * dot * ny
+            
+            # 6. Check Back Wall
+            hit_back = active & passed_median & (puck_y >= self.table_y - r_puck)
+            if np.any(hit_back):
+                puck_y[hit_back] = self.table_y - r_puck
+                v_y[hit_back] *= -1
+            
+            # 7. Goal Check (Hit back wall AND inside goal width)
+            is_goal = hit_back & (puck_x > self.goal_x_1 + r_puck) & (puck_x < self.goal_x_2 - r_puck)
+            results[is_goal] = 2
+            active[is_goal] = False
+            
+            # 8. Miss Check (Bounced back past median)
+            is_miss = active & passed_median & (puck_y <= self.table_y / 2)
+            results[is_miss] = 1
+            active[is_miss] = False
+
+        # Calculate success rate, excluding timeouts (results == 0)
+        total_valid = np.sum(results > 0)
+        if total_valid == 0:
+            return 0.0
+        
+        goals = np.sum(results == 2)
+        return float(goals / total_valid)
 
     def monte_carlo(self, shots=10000, step=1):
         # runs a monte carlo simulation where for a given pusher position (x, y), a number of shots are attempted
@@ -263,6 +323,7 @@ class Puck:
             array_table_length += 1
         table = np.zeros((array_table_width, array_table_length))
         for i in tqdm(range(array_table_length-1)):
+            pusher_x = float(self.pusher_diameter/2)
             for j in (range(array_table_width-1)):
                 results = []
                 for s in range(shots):
@@ -278,10 +339,38 @@ class Puck:
                 goals = np.sum(results)
                 rate = float(goals/len(results))
                 #print(rate)
-                table[i, j] = rate
+                table[j, i] = rate
                 pusher_x += step
                 #signal.alarm(0)
             pusher_y -= step
+        return table
+    
+    def monte_carlo_vec(self, shots=10000, step=1):
+        table_width = self.table_x
+        table_length = float(self.table_y / 2)
+        
+        pusher_x = float(self.pusher_diameter / 2)
+        pusher_y = self.table_y - float(self.pusher_diameter / 2)
+        
+        array_table_width = int((table_width - self.pusher_diameter) / step) + 1
+        array_table_length = int((table_length - self.pusher_diameter) / step) + 1
+        
+        table = np.zeros((array_table_width, array_table_length))
+        
+        print("Running Vectorized Monte Carlo...")
+        for i in tqdm(range(array_table_length)):
+            pusher_x = float(self.pusher_diameter / 2) # Reset X for the new row
+            
+            for j in range(array_table_width):
+                # Let numpy handle all shots for this coordinate simultaneously
+                rate = self.shoot_vectorized(pusher_x, pusher_y, shots)
+                
+                # Store in table (Note: j is width/x-axis, i is length/y-axis)
+                table[j, i] = rate
+                
+                pusher_x += step
+            pusher_y -= step
+            
         return table
 
     # def handler(self, signum, frame):
@@ -334,7 +423,46 @@ class Puck:
         ani.save(f"ani_{suffix}.mp4")
         plt.show()
 
+    def plot_heatmap(self, table):
+        # clear previous plot
+        plt.clf()
+        # add new plot
+        self.fig, self.ax = plt.subplots()
+        # store table boundaries in line list
+        lines = []
+        # draw left side of table - left will be zero-valued x-axis
+        lines.append([(0, 0), (0, self.table_y)])
+        # draw right side of table
+        lines.append([(self.table_x, 0), (self.table_x, self.table_y)])
+        # draw median line
+        lines.append([(0, float(self.table_y / 2)), (self.table_x, float(self.table_y / 2))])
+        # draw upper edge of table
+        lines.append([(0, self.table_y), (self.table_x, self.table_y)])
+        # draw bottom edge of table
+        lines.append([(0, 0), (self.table_x, 0)])
+        lc = collections.LineCollection(lines, color='black')
+        self.ax.add_collection(lc)
+        # set limits on axes
+        self.ax.set(xlim=[-50, self.table_y + 50], ylim=[-50, self.table_y + 50])
+        # draw goals
+        goals = [[(self.goal_x_1, 0), (self.goal_x_2, 0)], [(self.goal_x_1, self.table_y), (self.goal_x_2, self.table_y)]]
+        gc = collections.LineCollection(goals, color='blue')
+        self.ax.add_collection(gc)
+        # find padding size
+        pad_width = int((self.table_x - table.shape[0])/2)
+        pad_height = int((self.table_y/2 - table.shape[1])/2)
+        table = table.T
+        table_padded = np.pad(table, pad_width=((pad_width, pad_height), (pad_height, pad_width)), mode='constant', constant_values=0)
+        # draw heatmap
+        heatmap = self.ax.imshow(table_padded, cmap='viridis', interpolation='nearest')
+        self.fig.colorbar(heatmap, ax=self.ax)
+        plt.show()
+
+
+
 
 if __name__ == "__main__":
     print("Making Puck() object called sim... use .monte_carlo method to run simulation")
     sim = Puck()
+    results = sim.monte_carlo_vec(shots=1000, step=1)
+    sim.plot_heatmap(results)
